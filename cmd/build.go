@@ -15,16 +15,16 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/migsc/cmdeagle/bundle"
-	"github.com/migsc/cmdeagle/config"
-	"github.com/migsc/cmdeagle/envvar"
-	"github.com/migsc/cmdeagle/file"
-	"github.com/migsc/cmdeagle/flags"
-	"github.com/migsc/cmdeagle/params"
+	"github.com/Cenergistic/cmdeagle/bundle"
+	"github.com/Cenergistic/cmdeagle/config"
+	"github.com/Cenergistic/cmdeagle/envvar"
+	"github.com/Cenergistic/cmdeagle/file"
+	"github.com/Cenergistic/cmdeagle/flags"
+	"github.com/Cenergistic/cmdeagle/params"
 
-	"github.com/migsc/cmdeagle/args"
-	"github.com/migsc/cmdeagle/executable"
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/args"
+	"github.com/Cenergistic/cmdeagle/executable"
+	"github.com/Cenergistic/cmdeagle/types"
 
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
@@ -242,7 +242,7 @@ func runBuild() error {
 		return err
 	}
 
-	bundle.MainTemplateReplacements["github.com/migsc/cmdeagle/"] = []byte(fmt.Sprintf("%s/", cmdConfig.Name))
+	bundle.MainTemplateReplacements["github.com/Cenergistic/cmdeagle/"] = []byte(fmt.Sprintf("%s/", cmdConfig.Name))
 
 	resultingMainFileContent := bundle.InterpolateMainContent(templateMainFileContent)
 
@@ -285,7 +285,7 @@ func runBuild() error {
 			}
 
 			// Replace module name in file contents
-			data = bytes.ReplaceAll(data, []byte("github.com/migsc/cmdeagle/"), []byte(fmt.Sprintf("%s/", cmdConfig.Name)))
+			data = bytes.ReplaceAll(data, []byte("github.com/Cenergistic/cmdeagle/"), []byte(fmt.Sprintf("%s/", cmdConfig.Name)))
 
 			// Create parent directories if needed
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {

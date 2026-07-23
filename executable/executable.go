@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/migsc/cmdeagle/file"
+	"github.com/Cenergistic/cmdeagle/file"
 
 	log "github.com/charmbracelet/log"
 )

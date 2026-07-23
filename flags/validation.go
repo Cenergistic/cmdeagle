@@ -5,8 +5,8 @@ import (
 	"regexp"
 
 	"github.com/charmbracelet/log"
-	"github.com/migsc/cmdeagle/params"
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/params"
+	"github.com/Cenergistic/cmdeagle/types"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

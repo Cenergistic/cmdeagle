@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/migsc/cmdeagle/file"
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/file"
+	"github.com/Cenergistic/cmdeagle/types"
 
 	"github.com/charmbracelet/log"
 	"gopkg.in/yaml.v3"

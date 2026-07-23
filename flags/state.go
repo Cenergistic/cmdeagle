@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/migsc/cmdeagle/envvar"
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/envvar"
+	"github.com/Cenergistic/cmdeagle/types"
 
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"

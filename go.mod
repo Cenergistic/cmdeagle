@@ -1,4 +1,4 @@
-module github.com/migsc/cmdeagle
+module github.com/Cenergistic/cmdeagle
 
 go 1.23.2
 

@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/types"
 
 	"github.com/charmbracelet/log"
 )

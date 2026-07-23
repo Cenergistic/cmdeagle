@@ -24,7 +24,7 @@ npm install -g cmdeagle
 Alternatively, you can install it with [Golang's package manager](https://go.dev/doc/install) on a unix-like system (macOS, Linux, etc):
 
 ```sh
-go install github.com/migsc/cmdeagle@latest
+go install github.com/Cenergistic/cmdeagle@latest
 ```
 
 ### 2) Initializing a starter project
@@ -592,7 +592,7 @@ cmdeagle attempts to check the version by executing the dependency command with 
 
 If cmdeagle cannot determine the version, it will only verify that the command exists but won't validate the version constraint.
 
-If you encounter issues with version checking for a specific dependency, please [create an issue on GitHub](https://github.com/migsc/cmdeagle/issues) so we can improve support for that dependency.
+If you encounter issues with version checking for a specific dependency, please [create an issue on GitHub](https://github.com/Cenergistic/cmdeagle/issues) so we can improve support for that dependency.
 
 **Available comparison operators:**
 - `*` - Any version is acceptable (just checks if the command exists)

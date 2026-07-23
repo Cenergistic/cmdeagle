@@ -5,8 +5,8 @@ import (
 	"embed"
 	"runtime"
 
-	"github.com/migsc/cmdeagle/file"
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/file"
+	"github.com/Cenergistic/cmdeagle/types"
 
 	"fmt"
 	"os"

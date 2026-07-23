@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/types"
 
 	"github.com/spf13/pflag"
 )

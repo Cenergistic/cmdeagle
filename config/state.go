@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/migsc/cmdeagle/args"
-	"github.com/migsc/cmdeagle/envvar"
-	"github.com/migsc/cmdeagle/flags"
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/args"
+	"github.com/Cenergistic/cmdeagle/envvar"
+	"github.com/Cenergistic/cmdeagle/flags"
+	"github.com/Cenergistic/cmdeagle/types"
 )
 
 type ParamsStateStore struct {

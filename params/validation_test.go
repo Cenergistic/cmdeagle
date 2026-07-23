@@ -3,8 +3,8 @@ package params
 import (
 	"testing"
 
-	"github.com/migsc/cmdeagle/file"
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/file"
+	"github.com/Cenergistic/cmdeagle/types"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )

@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/migsc/cmdeagle/types"
+	"github.com/Cenergistic/cmdeagle/types"
 
 	afero "github.com/spf13/afero"
 	cast "github.com/spf13/cast"

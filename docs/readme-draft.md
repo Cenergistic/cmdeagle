@@ -25,7 +25,7 @@ A versatile build tool that allows you to build cross-platform CLI applications 
 
 You can 
 ```
-go install github.com/migsc/cmdeagle
+go install github.com/Cenergistic/cmdeagle
 ```
 
 With Node.js installed, you can install cmdeagle by running:
@@ -37,7 +37,7 @@ npm install -g cmdeagle
 ### Install from source
 
 ```
-git clone https://github.com/migsc/cmdeagle.git
+git clone https://github.com/Cenergistic/cmdeagle.git
 cd cmdeagle
 make build # or `npm run build` for Node.js
 ```

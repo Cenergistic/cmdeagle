@@ -68,7 +68,7 @@ async function install() {
     const osName = platformMap[platform];
     const archName = archMap[arch];
     const extension = platform === 'win32' ? 'zip' : 'tar.gz';
-    const url = `https://github.com/migsc/cmdeagle/releases/download/v${version}/cmdeagle_${version}_${osName}_${archName}.${extension}`;
+    const url = `https://github.com/Cenergistic/cmdeagle/releases/download/v${version}/cmdeagle_${version}_${osName}_${archName}.${extension}`;
     
     console.log(`Downloading from ${url}...`);
     
