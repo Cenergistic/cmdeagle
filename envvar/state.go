@@ -23,10 +23,15 @@ func (store *EnvStateStore) Set(key string, value string) {
 	store.Entries[key] = value
 }
 
+// Interpolate replaces {{<key>}} placeholders with a reference to the
+// corresponding environment variable so build scripts receive values as data
+// rather than as script text. See args.ArgsStateStore.Interpolate for the
+// rationale.
 func (store *EnvStateStore) Interpolate(script string) string {
-	for key, val := range store.Entries {
+	for key := range store.Entries {
 		placeholder := fmt.Sprintf("{{%s}}", key)
-		script = strings.ReplaceAll(script, placeholder, fmt.Sprint(val))
+		envRef := "${" + GetEnvVariableNameFromStateKey(key) + "}"
+		script = strings.ReplaceAll(script, placeholder, envRef)
 	}
 
 	return script
@@ -41,18 +46,3 @@ func (store *EnvStateStore) GetEnvVariables() []types.EnvVar {
 
 	return envVars
 }
-
-// func (store *EnvStateStore) ToJSON() map[string]any {
-// 	return map[string]any{
-// 		"args":  store.Args.ToJSON(),
-// 		"flags": store.Flags.ToJSON(),
-// 	}
-// }
-
-// func (store *ParamsStateStore) ToJSONString() string {
-// 	jsonBytes, err := json.Marshal(store.ToJSON())
-// 	if err != nil {
-// 		return "{}"
-// 	}
-// 	return string(jsonBytes)
-// }

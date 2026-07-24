@@ -881,7 +881,7 @@ uppercase = os.environ.get('FLAGS_UPPERCASE') == 'true'
 ```
 ###### Direct Interpolation
 
-You can also use variable interpolation directly in your scripts using the `{{variable-name}}` syntax:
+You can also reference argument and flag values directly in your scripts using the `{{variable-name}}` syntax:
 
 ```sh
 # Using argument values with interpolation
@@ -891,7 +891,10 @@ if [ "{{flags.verbose}}" = "true" ]; then
   echo "Verbose mode enabled"
 fi
 ```
-Note that the difference here is that interpolation is done at runtime *before* the script is executed, so the shell or interpreter will see the actual values, not the placeholders. This could be useful if you need some simple cross platform interpolation and don't want to rely on environment variables.
+
+Before your script runs, cmdeagle rewrites each `{{...}}` placeholder into a reference to the matching environment variable (for example `{{args.name}}` becomes `${ARGS_NAME}`) and then executes the script with `sh`. The value itself is passed through the environment, so the shell always treats it as data. A value that contains shell metacharacters such as quotes, semicolons, or backticks is used verbatim and can never be interpreted as a command. Interpolation therefore behaves like the environment-variable approach above, just with a shorter syntax.
+
+Because interpolation expands to a shell variable reference, quote the placeholder (`"{{args.name}}"`) whenever the value might contain spaces, exactly as you would quote any shell variable.
 
 The syntax is inspired by GitHub Actions workflow syntax for variable substitution, though cmdeagle's implementation is simpler and doesn't include expression handling. For more information on GitHub's approach, see [GitHub's documentation on contexts and expressions](https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability).
 
@@ -918,24 +921,23 @@ echo "CLI name: {{cli.name}}"
 
 **Parameter/Config Variables:**
 
-These variables provide access to structured data about your arguments and flags:
+These variables provide access to structured data about your arguments and flags. Each is also exported as an environment variable:
 
-- `{{args.json}}` - JSON representation of all arguments
-- `{{flags.json}}` - JSON representation of all flags
-- `{{params.json}}` - JSON representation of all parameters
+- `{{args.json}}` - JSON representation of all arguments (also available as `$ARGS_JSON`)
+- `{{flags.json}}` - JSON representation of all flags (also available as `$FLAGS_JSON`)
+- `{{params.json}}` - JSON representation of all parameters (also available as `$PARAMS_JSON`)
 
-These can be useful when you need to pass structured data to a script:
-
+When passing structured data to another language, read it from the environment variable rather than pasting the JSON into a quoted string literal:
 
 ```sh
 # Pass all arguments as JSON to a Python script
-python3 -c "import sys, json; data = json.loads('{{args.json}}'); print(data)"
+python3 -c "import os, json; data = json.loads(os.environ['ARGS_JSON']); print(data)"
 
 # Pass all flags as JSON to a JavaScript script
-node -e "const flags = JSON.parse('{{flags.json}}'); console.log(flags)"
+node -e "const flags = JSON.parse(process.env.FLAGS_JSON); console.log(flags)"
 ```
 
-These JSON representations can be particularly useful when working with complex data structures or when you need to process multiple arguments or flags at once.
+Avoid embedding `{{args.json}}` inside a quoted string literal in another language (for example `json.loads('{{args.json}}')`). The shell layer is safe, but a value that contains that language's quote character can still break out of the literal. Reading the environment variable, as shown above, avoids the problem entirely.
 
 **Note on Environment Variables:**
 
@@ -954,7 +956,7 @@ echo "CLI name: $CLI_NAME"
 
 This provides flexibility in how you access these values in your scripts.
 
-**Important:** The JSON representations (`args.json`, `flags.json`, and `params.json`) are only available through direct interpolation and are not set as environment variables. This is by design to avoid setting potentially large string contents as environment variables, which could cause issues in some systems or shells that have environment variable size limitations.
+**Note:** All interpolated values, including the JSON representations, are passed to your script through the environment. Whether you write `{{args.name}}` or read `$ARGS_NAME` directly, the value reaches your script as data and is never spliced into the script text, so untrusted input cannot be interpreted as a command.
 
 ##### Basic built-in validations
 

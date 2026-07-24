@@ -3,7 +3,11 @@ package args
 import (
 	"embed"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
+
+	"github.com/migsc/cmdeagle/types"
 
 	cast "github.com/spf13/cast"
 )
@@ -29,13 +33,47 @@ func AddArgType(name string, defaultVal any, convert func(val string) (any, erro
 	}
 }
 
-func GetArgType(name string) ArgTypeDef {
+// GetArgType returns the type definition for an argument type name. It returns
+// an error (rather than panicking) when the type is not recognised so that a bad
+// config surfaces as a friendly message instead of a stack trace.
+func GetArgType(name string) (ArgTypeDef, error) {
 	argType, ok := argTypes[name]
 	if !ok {
-		panic(fmt.Sprintf("Arg type `%s` not found", name))
+		return ArgTypeDef{}, fmt.Errorf("unknown argument type %q (valid types: %s)", name, strings.Join(ValidTypeNames(), ", "))
 	}
 
-	return argType
+	return argType, nil
+}
+
+// IsValidType reports whether name is a recognised argument type.
+func IsValidType(name string) bool {
+	_, ok := argTypes[name]
+	return ok
+}
+
+// ValidTypeNames lists the recognised argument type names, sorted for stable output.
+func ValidTypeNames() []string {
+	names := make([]string, 0, len(argTypes))
+	for name := range argTypes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// ValidateDefinition checks a single argument definition for an unknown type.
+func ValidateDefinition(argDef *types.ArgDefinition) error {
+	if argDef.Name == "" {
+		return fmt.Errorf("argument is missing a name")
+	}
+	argType := argDef.Type
+	if argType == "" {
+		argType = DefaultArgType
+	}
+	if !IsValidType(argType) {
+		return fmt.Errorf("argument %q has unknown type %q (valid types: %s)", argDef.Name, argType, strings.Join(ValidTypeNames(), ", "))
+	}
+	return nil
 }
 
 var argTypes = map[string]ArgTypeDef{

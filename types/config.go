@@ -46,7 +46,7 @@ type CmdeagleConfig struct {
 	Build      string              `yaml:"build,omitempty"`
 	Validate   string              `yaml:"validate,omitempty"`
 	Start      string              `yaml:"start,omitempty"`
-	Completion bool                `yaml:"completion`
+	Completion bool                `yaml:"completion,omitempty"`
 }
 
 // type Settings struct {

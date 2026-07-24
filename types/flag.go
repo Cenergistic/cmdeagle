@@ -6,7 +6,7 @@ type FlagDefinition struct {
 	Required      bool                `yaml:"required,omitempty"`
 	Default       any                 `yaml:"default,omitempty"`
 	Description   string              `yaml:"description,omitempty"`
-	Shorthand     string              `yaml:"short,omitempty"`
+	Shorthand     string              `yaml:"shorthand,omitempty"`
 	Hidden        bool                `yaml:"hidden,omitempty"`
 	DependsOn     []*ParamDependency  `yaml:"depends-on,omitempty"`
 	ConflictsWith []string            `yaml:"conflicts-with,omitempty"`
