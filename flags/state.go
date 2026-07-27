@@ -21,7 +21,7 @@ type FlagsStateStore struct {
 	flagDefMap   map[string]*types.FlagDefinition
 }
 
-func CreateFlagsStore(cobraCommand *cobra.Command, commandDef *types.CommandDefinition) *FlagsStateStore {
+func CreateFlagsStore(cobraCommand *cobra.Command, commandDef *types.CommandDefinition) (*FlagsStateStore, error) {
 	// TODO handle persistent flags
 	// https://cobra.dev/#persistent-flags
 
@@ -31,9 +31,18 @@ func CreateFlagsStore(cobraCommand *cobra.Command, commandDef *types.CommandDefi
 		flagDefMap:   make(map[string]*types.FlagDefinition),
 	}
 
-	for _, flagDef := range commandDef.Flags {
+	for i := range commandDef.Flags {
+		flagDef := commandDef.Flags[i]
+		log.Debug("\tValidating flag definition", "name", flagDef.Name)
+		if err := ValidateDefinition(&flagDef); err != nil {
+			return nil, err
+		}
+
 		log.Debug("\tGetting flag definition", "name", flagDef.Name)
-		flagType := GetFlagType(flagDef.Type)
+		flagType, err := GetFlagType(flagDef.Type)
+		if err != nil {
+			return nil, err
+		}
 
 		log.Debug("\tBinding flag", "name", flagDef.Name)
 		var flagVal *any
@@ -42,7 +51,7 @@ func CreateFlagsStore(cobraCommand *cobra.Command, commandDef *types.CommandDefi
 		store.flagDefMap[flagDef.Name] = &flagDef
 	}
 
-	return store
+	return store, nil
 }
 
 func (store *FlagsStateStore) Get(key string) *pflag.Flag {
@@ -66,10 +75,17 @@ func (store *FlagsStateStore) VisitAll(fn func(flag *pflag.Flag)) {
 	store.pFlagSet.VisitAll(fn)
 }
 
+// Interpolate replaces {{flags.<name>}} placeholders with a reference to the
+// corresponding environment variable (e.g. ${FLAGS_VERBOSE}) rather than
+// splicing the raw value into the script text. The shell treats the contents of
+// an expanded variable as data, so a hostile flag value cannot be interpreted
+// as shell syntax. The values are supplied via the environment (see
+// GetEnvVariables).
 func (store *FlagsStateStore) Interpolate(script string) string {
 	store.pFlagSet.VisitAll(func(flag *pflag.Flag) {
 		placeholder := fmt.Sprintf("{{flags.%s}}", flag.Name)
-		script = strings.ReplaceAll(script, placeholder, fmt.Sprint(flag.Value))
+		envRef := "${FLAGS_" + envvar.GetEnvVariableNameFromStateKey(flag.Name) + "}"
+		script = strings.ReplaceAll(script, placeholder, envRef)
 	})
 
 	return script

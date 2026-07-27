@@ -32,7 +32,7 @@ type ArgStateEntry struct {
 var DefaultArgType string = "string"
 
 // func CreateArgsStore(cobraCommand *cobra.Command, commandDef *config.CommandDefinition, args []string) *ArgsStateStore {
-func CreateArgsStore(cobraCommand *cobra.Command, argsConfigDef *[]types.ArgDefinition, args []string) *ArgsStateStore {
+func CreateArgsStore(cobraCommand *cobra.Command, argsConfigDef *[]types.ArgDefinition, args []string) (*ArgsStateStore, error) {
 	log.Debug("Creating args store / A", "args", args)
 	store := &ArgsStateStore{
 		CobraCommand: cobraCommand,
@@ -44,7 +44,7 @@ func CreateArgsStore(cobraCommand *cobra.Command, argsConfigDef *[]types.ArgDefi
 
 	log.Debug("Creating args store / B", "args", args)
 	if argsConfigDef == nil {
-		return store
+		return store, nil
 	}
 
 	log.Debug("Creating args store / C", "args", args)
@@ -53,11 +53,13 @@ func CreateArgsStore(cobraCommand *cobra.Command, argsConfigDef *[]types.ArgDefi
 		if def.Type == "" {
 			def.Type = DefaultArgType
 		}
-		argType := GetArgType(def.Type)
+		argType, err := GetArgType(def.Type)
+		if err != nil {
+			return nil, err
+		}
 
 		// Determine the raw and converted values
 		var val, rawVal any
-		var err error
 
 		log.Debug("Creating entry", "index", index, "def", def, "args", args)
 		if index < len(args) {
@@ -95,7 +97,7 @@ func CreateArgsStore(cobraCommand *cobra.Command, argsConfigDef *[]types.ArgDefi
 		store.Set(fmt.Sprintf("list[%d]", index), entry)
 	}
 
-	return store
+	return store, nil
 }
 
 func (store *ArgsStateStore) Get(key string) *ArgStateEntry {
@@ -167,12 +169,18 @@ func (store *ArgsStateStore) SetVal(key string, val any) any {
 	return store.Entries[key].Val
 }
 
+// Interpolate replaces {{args.<name>}} placeholders with a reference to the
+// corresponding environment variable (e.g. ${ARGS_NAME}) rather than splicing
+// the raw value into the script text. Because the shell treats the contents of
+// an expanded variable as data, this prevents a malicious argument value from
+// being interpreted as shell syntax. The values themselves are supplied to the
+// command via the environment (see GetEnvVariables).
 func (store *ArgsStateStore) Interpolate(script string) string {
 	log.Debug("Interpolating", "script", script)
-	for key, entry := range store.Entries {
-		log.Debug("Interpolating", "key", key, "val", entry.Val)
+	for key := range store.Entries {
 		placeholder := fmt.Sprintf("{{args.%s}}", key)
-		script = strings.ReplaceAll(script, placeholder, fmt.Sprint(entry.Val))
+		envRef := "${ARGS_" + envvar.GetEnvVariableNameFromStateKey(key) + "}"
+		script = strings.ReplaceAll(script, placeholder, envRef)
 	}
 
 	return script

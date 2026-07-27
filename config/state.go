@@ -17,16 +17,6 @@ type ParamsStateStore struct {
 	Entries map[string]string
 }
 
-func CreateEmptyParamsStore() *ParamsStateStore {
-	store := &ParamsStateStore{
-		Args:    args.CreateArgsStore(nil, nil, nil),
-		Flags:   flags.CreateFlagsStore(nil, nil),
-		Entries: map[string]string{},
-	}
-
-	return store
-}
-
 func CreateParamsStore(argsStore *args.ArgsStateStore, flagsStore *flags.FlagsStateStore) *ParamsStateStore {
 	store := &ParamsStateStore{
 		Args:    argsStore,
@@ -45,10 +35,15 @@ func (store *ParamsStateStore) Set(key string, value string) {
 	store.Entries[key] = value
 }
 
+// Interpolate replaces {{<key>}} placeholders (e.g. {{cli.bin_dir}},
+// {{args.json}}) with a reference to the corresponding environment variable so
+// the value reaches the shell as data rather than as script text. See
+// ArgsStateStore.Interpolate for the rationale.
 func (store *ParamsStateStore) Interpolate(script string) string {
-	for key, val := range store.Entries {
+	for key := range store.Entries {
 		placeholder := fmt.Sprintf("{{%s}}", key)
-		script = strings.ReplaceAll(script, placeholder, fmt.Sprint(val))
+		envRef := "${" + envvar.GetEnvVariableNameFromStateKey(key) + "}"
+		script = strings.ReplaceAll(script, placeholder, envRef)
 	}
 
 	return script

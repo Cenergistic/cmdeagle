@@ -2,7 +2,6 @@ package executable
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-version"
@@ -60,237 +59,150 @@ func GetVersion(binaryPath string, customCommand []string) (string, error) {
 	return GetVersionWithFallbacks(binaryPath)
 }
 
-// CheckVersionCompatibility determines if a found version satisfies version constraints
+// CheckVersionCompatibility determines whether a found version satisfies a
+// declared constraint. It supports an npm-style dialect (`*`, `^`, `~`, `>=`,
+// `>`, `<=`, `<`, `A - B` ranges, and an exact version) and delegates all
+// version parsing and comparison to hashicorp/go-version so numeric ordering,
+// multi-digit segments, and pre-release handling are correct.
 func CheckVersionCompatibility(foundVersion, declaredVersion string) (bool, string) {
 	// Handle wildcard case first
 	if declaredVersion == "*" {
 		return true, ""
 	}
 
-	// Parse found version
-	foundParts := strings.Split(strings.TrimPrefix(foundVersion, "v"), ".")
-	if len(foundParts) < 3 {
+	// The found version must be a full major.minor.patch. go-version would
+	// happily parse "1.2" as "1.2.0", so guard the segment count explicitly to
+	// keep the stricter behaviour this package has always promised.
+	if !hasThreeSegments(foundVersion) {
 		return false, "Invalid found version format"
 	}
-	foundMajor, foundMinor, foundPatch := foundParts[0], foundParts[1], foundParts[2]
+	found, err := version.NewVersion(foundVersion)
+	if err != nil {
+		return false, "Invalid found version format"
+	}
+	foundCore := coreVersion(found)
 
-	// Handle pre-release versions in found version
-	foundPatch = strings.Split(foundPatch, "-")[0]
-
-	// Parse declared version
 	declaredVersion = strings.TrimSpace(strings.ToLower(declaredVersion))
 
-	// Handle range operators
 	switch {
 	case strings.HasPrefix(declaredVersion, "^"):
-		// Major version must match exactly, minor and patch can be greater
-		declaredParts := strings.Split(strings.TrimPrefix(declaredVersion, "^"), ".")
-		if len(declaredParts) < 3 {
+		// Major version must match exactly, minor and patch can be greater.
+		bound, ok := parseBound(strings.TrimPrefix(declaredVersion, "^"))
+		if !ok {
 			return false, "Invalid declared version format"
 		}
-		declaredMajor := declaredParts[0]
-
-		if foundMajor != declaredMajor {
+		if foundCore.Segments()[0] != bound.Segments()[0] {
 			return false, "Major version mismatch"
 		}
 		return true, ""
 
 	case strings.HasPrefix(declaredVersion, "~"):
-		// Major and minor must match exactly, only patch can be greater
-		declaredParts := strings.Split(strings.TrimPrefix(declaredVersion, "~"), ".")
-		if len(declaredParts) < 3 {
+		// Major and minor must match exactly, only patch can be greater.
+		bound, ok := parseBound(strings.TrimPrefix(declaredVersion, "~"))
+		if !ok {
 			return false, "Invalid declared version format"
 		}
-		declaredMajor, declaredMinor := declaredParts[0], declaredParts[1]
-
-		if foundMajor != declaredMajor || foundMinor != declaredMinor {
+		if foundCore.Segments()[0] != bound.Segments()[0] || foundCore.Segments()[1] != bound.Segments()[1] {
 			return false, "Major or minor version mismatch"
 		}
 		return true, ""
 
 	case strings.HasPrefix(declaredVersion, ">="):
-		// Version must be greater than or equal
-		minVersion := strings.TrimPrefix(declaredVersion, ">=")
-		minParts := strings.Split(minVersion, ".")
-		if len(minParts) < 3 {
+		bound, ok := parseBound(strings.TrimPrefix(declaredVersion, ">="))
+		if !ok {
 			return false, "Invalid minimum version format"
 		}
-
-		if !isVersionGreaterOrEqual(foundMajor, foundMinor, foundPatch, minParts[0], minParts[1], minParts[2]) {
+		if foundCore.LessThan(bound) {
 			return false, "Version too low"
 		}
 		return true, ""
 
 	case strings.HasPrefix(declaredVersion, ">"):
-		// Version must be strictly greater
-		minVersion := strings.TrimPrefix(declaredVersion, ">")
-		minParts := strings.Split(minVersion, ".")
-		if len(minParts) < 3 {
+		bound, ok := parseBound(strings.TrimPrefix(declaredVersion, ">"))
+		if !ok {
 			return false, "Invalid minimum version format"
 		}
-
-		if !isVersionGreater(foundMajor, foundMinor, foundPatch, minParts[0], minParts[1], minParts[2]) {
+		if !foundCore.GreaterThan(bound) {
 			return false, "Version too low"
 		}
 		return true, ""
 
 	case strings.HasPrefix(declaredVersion, "<="):
-		// Version must be less than or equal
-		maxVersion := strings.TrimPrefix(declaredVersion, "<=")
-		maxParts := strings.Split(maxVersion, ".")
-		if len(maxParts) < 3 {
+		bound, ok := parseBound(strings.TrimPrefix(declaredVersion, "<="))
+		if !ok {
 			return false, "Invalid maximum version format"
 		}
-
-		if !isVersionLessOrEqual(foundMajor, foundMinor, foundPatch, maxParts[0], maxParts[1], maxParts[2]) {
+		if foundCore.GreaterThan(bound) {
 			return false, "Version too high"
 		}
 		return true, ""
 
 	case strings.HasPrefix(declaredVersion, "<"):
-		// Version must be strictly less
-		maxVersion := strings.TrimPrefix(declaredVersion, "<")
-		maxParts := strings.Split(maxVersion, ".")
-		if len(maxParts) < 3 {
+		bound, ok := parseBound(strings.TrimPrefix(declaredVersion, "<"))
+		if !ok {
 			return false, "Invalid maximum version format"
 		}
-
-		if !isVersionLess(foundMajor, foundMinor, foundPatch, maxParts[0], maxParts[1], maxParts[2]) {
+		if !foundCore.LessThan(bound) {
 			return false, "Version too high"
 		}
 		return true, ""
 
 	case strings.Contains(declaredVersion, " - "):
-		// Handle version ranges
 		parts := strings.Split(declaredVersion, " - ")
 		if len(parts) != 2 {
 			return false, "Invalid version range format"
 		}
-
-		minParts := strings.Split(parts[0], ".")
-		maxParts := strings.Split(parts[1], ".")
-		if len(minParts) < 3 || len(maxParts) < 3 {
+		min, minOK := parseBound(parts[0])
+		max, maxOK := parseBound(parts[1])
+		if !minOK || !maxOK {
 			return false, "Invalid version range format"
 		}
-
-		if !isVersionGreaterOrEqual(foundMajor, foundMinor, foundPatch, minParts[0], minParts[1], minParts[2]) {
+		if foundCore.LessThan(min) {
 			return false, "Version below range"
 		}
-		if !isVersionLessOrEqual(foundMajor, foundMinor, foundPatch, maxParts[0], maxParts[1], maxParts[2]) {
+		if foundCore.GreaterThan(max) {
 			return false, "Version above range"
 		}
 		return true, ""
 
 	default:
 		// Exact version match
-		declaredParts := strings.Split(declaredVersion, ".")
-		if len(declaredParts) < 3 {
+		bound, ok := parseBound(declaredVersion)
+		if !ok {
 			return false, "Invalid declared version format"
 		}
-
-		if foundMajor != declaredParts[0] || foundMinor != declaredParts[1] || foundPatch != declaredParts[2] {
+		if !foundCore.Equal(bound) {
 			return false, "Version does not match exactly"
 		}
 		return true, ""
 	}
 }
 
-func isVersionGreaterOrEqual(foundMajor, foundMinor, foundPatch, targetMajor, targetMinor, targetPatch string) bool {
-	// Convert to integers for proper numeric comparison
-	fMajor, _ := strconv.Atoi(foundMajor)
-	fMinor, _ := strconv.Atoi(foundMinor)
-	fPatch, _ := strconv.Atoi(foundPatch)
-
-	tMajor, _ := strconv.Atoi(targetMajor)
-	tMinor, _ := strconv.Atoi(targetMinor)
-	tPatch, _ := strconv.Atoi(targetPatch)
-
-	if fMajor > tMajor {
-		return true
-	}
-	if fMajor < tMajor {
-		return false
-	}
-	if fMinor > tMinor {
-		return true
-	}
-	if fMinor < tMinor {
-		return false
-	}
-	return fPatch >= tPatch
+// hasThreeSegments reports whether raw has at least major.minor.patch, matching
+// the strictness this package has always applied to input versions.
+func hasThreeSegments(raw string) bool {
+	raw = strings.TrimPrefix(strings.TrimSpace(raw), "v")
+	return len(strings.Split(raw, ".")) >= 3
 }
 
-func isVersionGreater(foundMajor, foundMinor, foundPatch, targetMajor, targetMinor, targetPatch string) bool {
-	// Convert to integers for proper numeric comparison
-	fMajor, _ := strconv.Atoi(foundMajor)
-	fMinor, _ := strconv.Atoi(foundMinor)
-	fPatch, _ := strconv.Atoi(foundPatch)
-
-	tMajor, _ := strconv.Atoi(targetMajor)
-	tMinor, _ := strconv.Atoi(targetMinor)
-	tPatch, _ := strconv.Atoi(targetPatch)
-
-	if fMajor > tMajor {
-		return true
+// parseBound parses a constraint bound, requiring a full major.minor.patch.
+func parseBound(raw string) (*version.Version, bool) {
+	raw = strings.TrimSpace(raw)
+	if !hasThreeSegments(raw) {
+		return nil, false
 	}
-	if fMajor < tMajor {
-		return false
+	v, err := version.NewVersion(raw)
+	if err != nil {
+		return nil, false
 	}
-	if fMinor > tMinor {
-		return true
-	}
-	if fMinor < tMinor {
-		return false
-	}
-	return fPatch > tPatch
+	return coreVersion(v), true
 }
 
-func isVersionLessOrEqual(foundMajor, foundMinor, foundPatch, targetMajor, targetMinor, targetPatch string) bool {
-	// Convert to integers for proper numeric comparison
-	fMajor, _ := strconv.Atoi(foundMajor)
-	fMinor, _ := strconv.Atoi(foundMinor)
-	fPatch, _ := strconv.Atoi(foundPatch)
-
-	tMajor, _ := strconv.Atoi(targetMajor)
-	tMinor, _ := strconv.Atoi(targetMinor)
-	tPatch, _ := strconv.Atoi(targetPatch)
-
-	if fMajor < tMajor {
-		return true
-	}
-	if fMajor > tMajor {
-		return false
-	}
-	if fMinor < tMinor {
-		return true
-	}
-	if fMinor > tMinor {
-		return false
-	}
-	return fPatch <= tPatch
-}
-
-func isVersionLess(foundMajor, foundMinor, foundPatch, targetMajor, targetMinor, targetPatch string) bool {
-	// Convert to integers for proper numeric comparison
-	fMajor, _ := strconv.Atoi(foundMajor)
-	fMinor, _ := strconv.Atoi(foundMinor)
-	fPatch, _ := strconv.Atoi(foundPatch)
-
-	tMajor, _ := strconv.Atoi(targetMajor)
-	tMinor, _ := strconv.Atoi(targetMinor)
-	tPatch, _ := strconv.Atoi(targetPatch)
-
-	if fMajor < tMajor {
-		return true
-	}
-	if fMajor > tMajor {
-		return false
-	}
-	if fMinor < tMinor {
-		return true
-	}
-	if fMinor > tMinor {
-		return false
-	}
-	return fPatch < tPatch
+// coreVersion strips any pre-release or build metadata, leaving only
+// major.minor.patch so comparisons ignore pre-release ordering (e.g. 1.2.3-beta
+// is treated as 1.2.3). Segments() is always zero-padded to at least three.
+func coreVersion(v *version.Version) *version.Version {
+	segs := v.Segments()
+	core, _ := version.NewVersion(fmt.Sprintf("%d.%d.%d", segs[0], segs[1], segs[2]))
+	return core
 }
