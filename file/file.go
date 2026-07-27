@@ -17,22 +17,74 @@ var PackageFS embed.FS
 
 // MimeTypes maps file extensions to their corresponding MIME types
 var MimeTypes = map[string]string{
+	// Images
 	".jpg":  "image/jpeg",
 	".jpeg": "image/jpeg",
 	".png":  "image/png",
 	".gif":  "image/gif",
+	".bmp":  "image/bmp",
+	".webp": "image/webp",
+	".svg":  "image/svg+xml",
+	".ico":  "image/x-icon",
+
+	// Documents
 	".pdf":  "application/pdf",
-	".txt":  "text/plain",
-	".html": "text/html",
-	".htm":  "text/html",
-	".json": "application/json",
-	".xml":  "application/xml",
-	".zip":  "application/zip",
 	".doc":  "application/msword",
 	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	".xls":  "application/vnd.ms-excel",
 	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	".ppt":  "application/vnd.ms-powerpoint",
+	".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+
+	// Text
+	".txt":  "text/plain",
 	".csv":  "text/csv",
+	".html": "text/html",
+	".htm":  "text/html",
+	".css":  "text/css",
+	".js":   "text/javascript",
+	".json": "application/json",
+	".xml":  "application/xml",
+	".yaml": "text/yaml",
+	".yml":  "text/yaml",
+
+	// Archives
+	".zip": "application/zip",
+	".gz":  "application/gzip",
+	".tar": "application/x-tar",
+	".7z":  "application/x-7z-compressed",
+	".rar": "application/x-rar-compressed",
+
+	// Audio
+	".mp3":  "audio/mpeg",
+	".wav":  "audio/wav",
+	".ogg":  "audio/ogg",
+	".m4a":  "audio/mp4",
+	".flac": "audio/flac",
+
+	// Video
+	".mp4": "video/mp4",
+	".avi": "video/x-msvideo",
+	".mov": "video/quicktime",
+	".wmv": "video/x-ms-wmv",
+	".mkv": "video/x-matroska",
+
+	// Programming
+	".go":   "text/x-go",
+	".py":   "text/x-python",
+	".java": "text/x-java",
+	".rb":   "text/x-ruby",
+	".php":  "text/x-php",
+	".c":    "text/x-c",
+	".cpp":  "text/x-c++",
+	".rs":   "text/x-rust",
+
+	// Binary formats
+	".bin":   "application/octet-stream",
+	".exe":   "application/octet-stream",
+	".dll":   "application/octet-stream",
+	".so":    "application/octet-stream",
+	".dylib": "application/octet-stream",
 }
 
 func ResolvePath(path string) (string, error) {
@@ -144,6 +196,70 @@ func FindFileEndsWithPattern(dir string, pattern string) (string, error) {
 	return "", fmt.Errorf("no file matching the pattern %s found in directory %s", pattern, dir)
 }
 
+// Copy recursively copies the file or directory at src to dst, preserving file
+// modes. It is a portable replacement for shelling out to `cp -r`, which does
+// not exist on Windows.
+func Copy(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		return copyDir(src, dst, info)
+	}
+	return copyFile(src, dst, info)
+}
+
+func copyDir(src, dst string, info os.FileInfo) error {
+	if err := os.MkdirAll(dst, info.Mode().Perm()); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+		if err := Copy(srcPath, dstPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFile(src, dst string, info os.FileInfo) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+
+	// OpenFile honours the mode only when it creates the file; set it explicitly
+	// so an existing destination ends up with the source's permissions too.
+	return os.Chmod(dst, info.Mode().Perm())
+}
+
 func ExpandPath(path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("empty path")
@@ -184,12 +300,15 @@ func ValidateFileType(fs afero.Fs, filePath string, expectedType string) error {
 
 	// Read first 512 bytes for MIME type detection
 	buffer := make([]byte, 512)
-	_, err = file.Read(buffer)
+	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("Cannot read file: %v", err)
 	}
 
-	detectedType := http.DetectContentType(buffer)
+	// Only hand DetectContentType the bytes we actually read. Passing the full
+	// 512-byte buffer padded with trailing NULs makes it report
+	// application/octet-stream for otherwise-detectable text files.
+	detectedType := http.DetectContentType(buffer[:n])
 
 	// Handle MIME type constraints
 	if strings.Contains(expectedType, "/") {

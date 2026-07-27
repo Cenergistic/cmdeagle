@@ -116,7 +116,7 @@ commands:
     - lowercase
 
   - name: lowercase
-    shorthand: u
+    shorthand: l
     type: boolean
     description: "Convert greeting to lowercase"
     default: false
@@ -130,21 +130,21 @@ commands:
     default: 1
 
   - name: use-python
-    shorthand: py
+    shorthand: p
     type: boolean
     description: "Use Python to greet the user"
     conflicts-with:
-    - use-javascript
+    - use-js
 
   - name: use-js
-    shorthand: js
+    shorthand: j
     type: boolean
     description: "Use JavaScript to greet the user"
     conflicts-with:
     - use-python
 
   - name: use-go
-    shorthand: js
+    shorthand: g
     type: boolean
     description: "Use Go to greet the user"
     conflicts-with:

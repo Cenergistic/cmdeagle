@@ -2,17 +2,14 @@ package params
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/charmbracelet/log"
+	"github.com/Cenergistic/cmdeagle/file"
 	"github.com/Cenergistic/cmdeagle/types"
 
 	afero "github.com/spf13/afero"
@@ -380,68 +377,10 @@ func validateFileConstraints(fs afero.Fs, constraint *types.ParamConstraints, va
 
 	// Check IsFileType constraint
 	if constraint.IsFileType != "" {
-		if err := validateFileType(fs, filePath, constraint.IsFileType); err != nil {
+		if err := file.ValidateFileType(fs, filePath, constraint.IsFileType); err != nil {
 			return fmt.Errorf("File type validation failed: %v", err)
 		}
 	}
 
 	return nil
-}
-
-func validateFileType(fs afero.Fs, filePath string, expectedType string) error {
-	// Normalize expected type
-	if !strings.HasPrefix(expectedType, ".") && !strings.Contains(expectedType, "/") {
-		expectedType = "." + expectedType
-	}
-
-	// Open and read file for MIME type detection
-	file, err := fs.Open(filePath)
-	if err != nil {
-		return fmt.Errorf("Cannot open file: %v", err)
-	}
-	defer file.Close()
-
-	// Read first 512 bytes for MIME type detection
-	buffer := make([]byte, 512)
-	_, err = file.Read(buffer)
-	if err != nil && err != io.EOF {
-		return fmt.Errorf("Cannot read file: %v", err)
-	}
-
-	detectedType := http.DetectContentType(buffer)
-
-	// Handle MIME type constraints
-	if strings.Contains(expectedType, "/") {
-		// Special handling for binary files
-		if detectedType == "application/octet-stream" {
-			// For binary files, trust the file extension more than the detected type
-			if ext := strings.ToLower(filepath.Ext(filePath)); ext != "" {
-				if _, ok := MimeTypes[ext]; ok {
-					return nil // Accept if extension matches expected type
-				}
-			}
-		}
-
-		if !strings.HasPrefix(strings.ToLower(detectedType), strings.ToLower(expectedType)) {
-			return fmt.Errorf("File is not of type %v (detected: %v)", expectedType, detectedType)
-		}
-		return nil
-	}
-
-	// Handle extension constraints
-	ext := strings.ToLower(filepath.Ext(filePath))
-	if ext == "" {
-		return fmt.Errorf("File has no extension")
-	}
-
-	// Check if extension matches expected MIME type
-	if expectedMime, ok := MimeTypes[strings.ToLower(expectedType)]; ok {
-		if strings.HasPrefix(strings.ToLower(detectedType), strings.ToLower(expectedMime)) {
-			return nil
-		}
-		return fmt.Errorf("File extension %v doesn't match content type (detected: %v, expected: %v)",
-			ext, detectedType, expectedMime)
-	}
-
-	return fmt.Errorf("Unknown file type: %v", expectedType)
 }
