@@ -1,17 +1,18 @@
 name: Lint and test
 
-# on: [ push, pull_request ]
+on: [push, pull_request]
 
 jobs:
-  setup_env:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/setup-go@v5
-      with:
-        go-version: '1.23.2' # The Go version to download (if necessary) and use.
-
   build_and_test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - run: make build && make test
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.2' # The Go version to download (if necessary) and use.
+    - name: Vet
+      run: go vet ./...
+    - name: Build
+      run: make build
+    - name: Test
+      run: make test

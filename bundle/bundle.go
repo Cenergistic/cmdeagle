@@ -10,7 +10,6 @@ import (
 
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/charmbracelet/log"
@@ -106,37 +105,6 @@ func SetupMainFile(path string) (string, error) {
 	return mainFilePath, nil
 }
 
-type Bundle struct {
-	DirPath string
-	DirName string
-	Files   map[string]*BundleFile
-}
-
-// func CreateBundle(config *config.CmdeagleConfig) (*Bundle, error) {
-// 	var bundle = Bundle{
-// 		DirPath: config.DataDir,
-// 		DirName: config.Name,
-// 		Files:   make(map[string]*BundleFile),
-// 	}
-
-// 	return &bundle, nil
-// }
-
-// type BundleFile struct {
-// 	path     string
-// 	info     os.FileInfo
-// 	children []*BundleFile
-// 	parents  []*BundleFile
-// }
-
-// func GetDestDir(config *schema.CmdeagleConfig) (string, error) {
-// 	if config.DataDir == "" {
-// 		return "", fmt.Errorf("Directory path was not provided for data/bundle directory.")
-// 	}
-
-// 	return filepath.Join(config.DataDir, config.Name), nil
-// }
-
 func CopyIncludedFiles(config *types.CmdeagleConfig, command *types.CommandDefinition, namespace []string, targetDirPath string) error {
 	log.Debug("Copying included files",
 		"command", command.Name,
@@ -186,62 +154,17 @@ func copyIncludedFile(includedFilePath string, targetDir string) error {
 		return fmt.Errorf("could not expand the path: %s\n%v", includedFilePath, err)
 	}
 
-	// Get the source file's info to check permissions
-	// fileInfo, err := os.Stat(expandedPath)
-	if err != nil {
-		return fmt.Errorf("could not stat file: %s\n%v", expandedPath, err)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("could not create target directory %s: %w", targetDir, err)
 	}
 
-	// Use cp with -p flag to preserve mode, ownership, timestamps
-	cmd := exec.Command("cp", "-pr", expandedPath, targetDir)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Copy the source into the target directory (targetDir/<base>), preserving
+	// file modes. Uses a portable Go implementation rather than shelling out to
+	// `cp`, which is unavailable on Windows.
+	dst := filepath.Join(targetDir, filepath.Base(expandedPath))
+	if err := file.Copy(expandedPath, dst); err != nil {
+		return fmt.Errorf("could not copy %s to %s: %w", expandedPath, dst, err)
+	}
 
-	// TODO: This wasn't working as expected. We should revisit this.
-	// If the file is executable for user, group, or others, throw an error
-	// if fileInfo.Mode()&0111 != 0 {
-	// 	return fmt.Errorf("cannot include executable file in the bundle: %s", expandedPath)
-	// 	// Previous implementation where we wanted to allow executable files in the bundle
-	// 	// cmd2 := exec.Command("chmod", "+x", filepath.Join(targetDir, filepath.Base(expandedPath)))
-	// 	// cmd2.Stdout = os.Stdout
-	// 	// cmd2.Stderr = os.Stderr
-	// 	// log.Info("copying executable file",
-	// 	// 	"file", includedFilePath,
-	// 	// 	"mode", fileInfo.Mode().String(),
-	// 	// )
-	// 	// err = cmd.Run()
-	// 	// if err != nil {
-	// 	// 	return err
-	// 	// }
-	// 	// return cmd2.Run() // TODO: This is not working. Could we move it to the binary directory and then run it from there?
-	// } else {
-	// 	return cmd.Run()
-	// }
-
-	return cmd.Run()
+	return nil
 }
-
-// type FileManifest struct {
-// 	files []os.FileInfo
-// }
-
-// func marshalFileManifest(manifest *FileManifest) ([]byte, error) {
-// 	if manifest == nil {
-// 		return nil, fmt.Errorf("manifest cannot be nil")
-// 	}
-
-// 	fileInfos := make([]map[string]interface{}, len(manifest.files))
-// 	for i, f := range manifest.files {
-// 		fileInfos[i] = map[string]interface{}{
-// 			"name":    f.Name(),
-// 			"size":    f.Size(),
-// 			"mode":    f.Mode().String(),
-// 			"modTime": f.ModTime(),
-// 			"isDir":   f.IsDir(),
-// 		}
-// 	}
-
-// 	return yaml.Marshal(map[string]interface{}{
-// 		"files": fileInfos,
-// 	})
-// }

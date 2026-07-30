@@ -56,6 +56,10 @@ func execute() error {
 		return fmt.Errorf("Failed to load configuration from embedded bundle: %w", err)
 	}
 
+	if err := config.ValidateConfig(cmdConfig); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
 	rootCommandDef := &types.CommandDefinition{
 		Name:        cmdConfig.Name,
 		Description: cmdConfig.Description,
@@ -100,43 +104,10 @@ License: %s`, cmdConfig.Description, cmdConfig.Version, cmdConfig.Author, cmdCon
 		return fmt.Errorf("failed to process commands: %w", err)
 	}
 
-	log.Debug("Inspecting embedded bundle filesystem...")
-
-	// Walk through the embedded filesystem and print the directory tree
-	// err = fs.WalkDir(bundleFS, ".", func(path string, d fs.DirEntry, err error) error {
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	indent := strings.Repeat("  ", len(strings.Split(path, "/")))
-	// 	if d.IsDir() {
-	// 		fmt.Println(indent + "📁 " + d.Name())
-	// 	} else {
-	// 		fmt.Println(indent + "📄 " + d.Name())
-	// 	}
-
-	// 	return nil
-	// })
-
-	// if err != nil {
-	// 	return fmt.Errorf("failed to walk embedded filesystem: %w", err)
-	// }
-
 	log.Debug("Setting up data directory")
 	if err := setupDataDirectory(bundleFS, cmdConfig.Name); err != nil {
 		log.Fatalf("Failed to setup data directory: %v", err)
 	}
-
-	// log.Debug("Command tree structure:")
-	// var printCommandTree func(cmd *cobra.Command, level int)
-	// printCommandTree = func(cmd *cobra.Command, level int) {
-	// 	indent := strings.Repeat("  ", level)
-	// 	// fmt.Printf("%s%s\n", indent, cmd.Name())
-	// 	for _, subCmd := range cmd.Commands() {
-	// 		printCommandTree(subCmd, level+1)
-	// 	}
-	// }
-	// printCommandTree(rootCmd, 0)
 
 	log.Debug("Done")
 
@@ -212,7 +183,10 @@ func registerCommandDef(cmdConfig *types.CmdeagleConfig, commandDef *types.Comma
 	}
 
 	// Create flag store
-	flagStore := flags.CreateFlagsStore(cobraCmd, commandDef)
+	flagStore, err := flags.CreateFlagsStore(cobraCmd, commandDef)
+	if err != nil {
+		return nil, fmt.Errorf("invalid flag configuration for command %q: %w", commandDef.Name, err)
+	}
 	log.Debug("Created flagStore", "path", commandPath, "flagStore", flagStore)
 
 	// 1. Global setup for the entire top-level command.
@@ -256,14 +230,18 @@ func registerCommandDef(cmdConfig *types.CmdeagleConfig, commandDef *types.Comma
 
 	cobraCmd.Args = func(cobraCommand *cobra.Command, arguments []string) error {
 		log.Debug("Triggering hook `Args`", "path", commandPath)
-		argStore = args.CreateArgsStore(cobraCommand, &commandDef.Args, arguments)
+		var err error
+		argStore, err = args.CreateArgsStore(cobraCommand, &commandDef.Args, arguments)
+		if err != nil {
+			return fmt.Errorf("invalid argument configuration for command %q: %w", commandDef.Name, err)
+		}
 		log.Debug("Created argsStore", "path", commandPath, "argsStore", argStore)
 
 		paramsStore = config.CreateParamsStore(argStore, flagStore)
 		log.Debug("Created paramsStore", "path", commandPath, "paramsStore", paramsStore)
 
 		log.Debug("Validating args", "path", commandPath, "argsStore", argStore, "commandDef.Args", commandDef.Args)
-		err := args.ValidateArgs(cobraCommand, &commandDef.Args, argStore)
+		err = args.ValidateArgs(cobraCommand, &commandDef.Args, argStore)
 		if err != nil {
 			return err
 		}

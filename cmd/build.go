@@ -1,6 +1,3 @@
-/*
-Copyright © 2024 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
@@ -140,6 +137,12 @@ func runBuild() error {
 	configFileContent, cmdConfig, err := config.Load(workingDirPath)
 	if err != nil {
 		return err
+	}
+
+	// Fail fast on configuration mistakes so the author gets a clear message
+	// instead of the generated CLI panicking at runtime.
+	if err := config.ValidateConfig(cmdConfig); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	// Print experimental-imports flag value
